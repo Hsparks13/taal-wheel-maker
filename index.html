@@ -474,9 +474,17 @@ canvas { display: block; width: 100%; height: 100%; }
       const base = W * 0.12;
       ctx.font = '800 ' + base + 'px Nunito, "Avenir Next", system-ui, sans-serif';
       const big = Math.min(base, (base * g.R * 1.35) / ctx.measureText(current).width);
+      // Replays on every entry, even when the name repeats: pop in from 60% with a slight overshoot.
+      const p = Math.min(1, (state.since * cfg.sec) / Math.min(0.28, cfg.sec * 0.6));
+      const back = 1 + 2.70158 * Math.pow(p - 1, 3) + 1.70158 * Math.pow(p - 1, 2);
+      ctx.save();
+      ctx.translate(g.c, g.c); ctx.scale(0.6 + 0.4 * back, 0.6 + 0.4 * back);
+      ctx.globalAlpha = p;
       ctx.font = '800 ' + big + 'px Nunito, "Avenir Next", system-ui, sans-serif';
-      ctx.fillStyle = ink.label; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(current, g.c, g.c);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = ART.pill; ctx.fillText(current, 0, 0);
+      ctx.lineWidth = W * 0.004; ctx.strokeStyle = ART.pillEdge; ctx.strokeText(current, 0, 0);
+      ctx.restore();
     }
     const a = angleOf(state.pos, n);
     if (style === 'trail') {
@@ -500,12 +508,17 @@ canvas { display: block; width: 100%; height: 100%; }
   // Marker position (in entries) after u beats; glide styles move only in the last part of each beat.
   function posAt(style, u, n, finite) {
     const k = Math.floor(u), f = u - k;
+    const glides = style === 'glide' || style === 'trail';
+    const hold = style === 'trail' ? 0.3 : 0.55;
     let move = 0;
-    if ((style === 'glide' || style === 'trail') && !(finite && k === n - 1)) {
-      const hold = style === 'trail' ? 0.3 : 0.55;
-      if (f > hold) move = ease((f - hold) / (1 - hold));
+    if (glides && !(finite && k === n - 1) && f > hold) move = ease((f - hold) / (1 - hold));
+    // `since`: beats since the marker reached its current entry (glides switch halfway through the move).
+    let since = f;
+    if (glides) {
+      const sw = hold + 0.5 * (1 - hold);
+      since = move > 0.5 ? f - sw : k === 0 ? u : f + 1 - sw;
     }
-    return { pos: (k + move) % n, index: (move > 0.5 ? k + 1 : k) % n };
+    return { pos: (k + move) % n, index: (move > 0.5 ? k + 1 : k) % n, since };
   }
 
   // Returns null before the first beat, {done} after the last, else the marker state.
