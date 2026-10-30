@@ -81,11 +81,14 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--focus); out
 .quick { display: flex; gap: 8px; }
 .quick input { flex: 1; }
 
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
-.seg label { padding: 6px 14px; cursor: pointer; font-size: 14px; }
-.seg input { position: absolute; opacity: 0; pointer-events: none; }
-.seg label:has(input:checked) { background: var(--fg); color: var(--panel); }
-.seg label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
+.styles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.style-card { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); cursor: pointer; min-width: 0; }
+.style-card input { position: absolute; opacity: 0; pointer-events: none; }
+.style-card b { font: 800 15px/1.2 var(--font-display); }
+.style-card span { font-size: 12.5px; line-height: 1.35; color: var(--muted); }
+.style-card:has(input:checked) { border-color: var(--accent); background: var(--chip); }
+.style-card:has(input:checked) span { color: var(--chip-ink); }
+.style-card:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 .check { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
 .check input { accent-color: var(--accent); width: 16px; height: 16px; }
 .swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -163,14 +166,16 @@ canvas { display: block; width: 100%; height: 100%; }
       </div>
 
       <div class="group">
-        <span class="label">Motion</span>
-        <div class="row" style="justify-content: space-between; flex-wrap: wrap;">
-          <div class="seg" role="radiogroup" aria-label="Motion">
-            <label><input type="radio" name="motion" id="motionStep" value="step" checked>Step</label>
-            <label><input type="radio" name="motion" id="motionGlide" value="glide">Glide</label>
-          </div>
-          <label class="check"><input type="checkbox" id="loop" checked>Loop the cycle</label>
+        <span class="label" id="styleLabel">Animation style</span>
+        <div class="styles" role="radiogroup" aria-labelledby="styleLabel">
+          <label class="style-card"><input type="radio" name="style" id="style-step" value="step" checked><b>Step</b><span>Marker jumps to each entry</span></label>
+          <label class="style-card"><input type="radio" name="style" id="style-glide" value="glide"><b>Glide</b><span>Marker slides between entries</span></label>
+          <label class="style-card"><input type="radio" name="style" id="style-pulse" value="pulse"><b>Pulse</b><span>Marker pops with a ripple on every beat</span></label>
+          <label class="style-card"><input type="radio" name="style" id="style-trail" value="trail"><b>Trail</b><span>Marker glides with a fading tail</span></label>
+          <label class="style-card"><input type="radio" name="style" id="style-sweep" value="sweep"><b>Sweep</b><span>The circle fills in red as the cycle plays</span></label>
+          <label class="style-card"><input type="radio" name="style" id="style-spotlight" value="spotlight"><b>Spotlight</b><span>Current name grows and turns red</span></label>
         </div>
+        <label class="check"><input type="checkbox" id="loop" checked>Loop the cycle</label>
       </div>
 
       <div class="group">
@@ -296,7 +301,7 @@ canvas { display: block; width: 100%; height: 100%; }
     return {
       names: currentNames().map((s) => s.trim()),
       sec: clampSpeed(speed.value),
-      motion: form.querySelector('input[name="motion"]:checked').value,
+      style: form.querySelector('input[name="style"]:checked').value,
       loop: loopEl.checked,
       bg: bgEl.value.toLowerCase(),
     };
@@ -311,7 +316,8 @@ canvas { display: block; width: 100%; height: 100%; }
   function writeForm(cfg) {
     setCount(cfg.names.length, cfg.names);
     setSpeed(cfg.sec);
-    $(cfg.motion === 'glide' ? 'motionGlide' : 'motionStep').checked = true;
+    // Settings saved before styles existed only have `motion` (step or glide).
+    ($('style-' + (cfg.style || cfg.motion)) || $('style-step')).checked = true;
     loopEl.checked = !!cfg.loop;
     setBg(cfg.bg);
   }
@@ -392,15 +398,17 @@ canvas { display: block; width: 100%; height: 100%; }
     return Math.max(W * 0.018, base * scale);
   }
 
-  function drawPill(a, g, ink) {
-    const len = g.tick * 1.3, thick = W * 0.034;
+  function drawPill(a, g, ink, { scale = 1, alpha = 1, ghost = false } = {}) {
+    const len = g.tick * 1.3 * scale, thick = W * 0.034 * scale;
     ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.translate(g.c + Math.cos(a) * g.R, g.c + Math.sin(a) * g.R);
     ctx.rotate(a);
     const x = -len / 2, y = -thick / 2, r = thick / 2;
     ctx.beginPath();
     ctx.roundRect ? ctx.roundRect(x, y, len, thick, r) : ctx.rect(x, y, len, thick);
     ctx.fillStyle = ART.pill; ctx.fill();
+    if (ghost) { ctx.restore(); return; }
     ctx.lineWidth = W * 0.005; ctx.strokeStyle = ART.pillEdge; ctx.stroke();
     // Keep the grey tick visible through the marker, as in the reference.
     ctx.beginPath(); ctx.moveTo(-g.tick / 2, 0); ctx.lineTo(g.tick / 2, 0);
@@ -408,53 +416,99 @@ canvas { display: block; width: 100%; height: 100%; }
     ctx.restore();
   }
 
-  function draw(cfg, marker) {
+  // `state` is null when no marker shows, else what timeline() returns.
+  function draw(cfg, state) {
     const names = cfg.names, n = names.length, g = geometry(names);
-    const ink = inkFor(cfg.bg || DEFAULT_BG);
+    const ink = inkFor(cfg.bg || DEFAULT_BG), style = cfg.style || 'step';
     ctx.fillStyle = cfg.bg || DEFAULT_BG; ctx.fillRect(0, 0, W, W);
 
     ctx.lineCap = 'round';
     ctx.strokeStyle = ink.ring; ctx.lineWidth = g.ringW;
     ctx.beginPath(); ctx.arc(g.c, g.c, g.R, 0, Math.PI * 2); ctx.stroke();
 
+    const sweeping = state && style === 'sweep';
+    if (sweeping && state.sweep > 0) {
+      ctx.beginPath(); ctx.arc(g.c, g.c, g.R, angleOf(0, n), angleOf(state.sweep, n));
+      ctx.strokeStyle = ART.pill; ctx.lineWidth = g.ringW * 1.9; ctx.stroke();
+      ctx.lineWidth = g.ringW;
+    }
+
     for (let i = 0; i < n; i++) {
       const a = angleOf(i, n), cos = Math.cos(a), sin = Math.sin(a);
+      ctx.strokeStyle = sweeping && i <= state.index ? ART.pillEdge : ink.ring;
       ctx.beginPath();
       ctx.moveTo(g.c + cos * (g.R - g.tick / 2), g.c + sin * (g.R - g.tick / 2));
       ctx.lineTo(g.c + cos * (g.R + g.tick / 2), g.c + sin * (g.R + g.tick / 2));
       ctx.stroke();
     }
 
-    const size = g.font;
-    ctx.font = '700 ' + size + 'px Nunito, "Avenir Next", system-ui, sans-serif';
-    ctx.fillStyle = ink.label;
+    const size = g.font, spot = state && style === 'spotlight';
     for (let i = 0; i < n; i++) {
       if (!names[i]) continue;
       const a = angleOf(i, n), cos = Math.cos(a), sin = Math.sin(a);
+      let grow = 1;
+      ctx.fillStyle = ink.label; ctx.globalAlpha = 1;
+      if (spot && i === state.index) {
+        ctx.fillStyle = ART.pillEdge;
+        grow = 1 + 0.22 * ease(Math.min(1, state.f / 0.18));
+      } else if (spot) ctx.globalAlpha = 0.4;
+      ctx.font = '700 ' + size * grow + 'px Nunito, "Avenir Next", system-ui, sans-serif';
       ctx.textAlign = cos > 0.35 ? 'left' : cos < -0.35 ? 'right' : 'center';
       ctx.textBaseline = sin < -0.5 ? 'bottom' : sin > 0.5 ? 'top' : 'middle';
       ctx.fillText(names[i], g.c + cos * g.labelR, g.c + sin * g.labelR);
     }
+    ctx.globalAlpha = 1;
 
-    if (marker !== null) drawPill(angleOf(marker, n), g, ink);
+    if (!state) return;
+    const a = angleOf(state.pos, n);
+    if (style === 'trail') {
+      state.tail.forEach((p, j) => drawPill(angleOf(p, n), g, ink, { scale: 0.92, alpha: 0.45 * (1 - (j + 1) / (state.tail.length + 1)), ghost: true }));
+      drawPill(a, g, ink);
+    } else if (style === 'pulse') {
+      const p = Math.min(1, state.f / 0.7);
+      ctx.beginPath();
+      ctx.arc(g.c + Math.cos(a) * g.R, g.c + Math.sin(a) * g.R, g.tick * (0.6 + 1.4 * p), 0, Math.PI * 2);
+      ctx.globalAlpha = 0.6 * (1 - p); ctx.strokeStyle = ART.pill; ctx.lineWidth = W * 0.006; ctx.stroke();
+      ctx.globalAlpha = 1;
+      drawPill(a, g, ink, { scale: 1 + 0.4 * Math.exp(-state.f * 7) });
+    } else {
+      drawPill(a, g, ink);
+    }
   }
 
   // ---------- timing ----------
   const ease = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
 
-  // Returns null before the first beat, {done} after the last, else the marker position in beats.
+  // Marker position (in entries) after u beats; glide styles move only in the last part of each beat.
+  function posAt(style, u, n, finite) {
+    const k = Math.floor(u), f = u - k;
+    let move = 0;
+    if ((style === 'glide' || style === 'trail') && !(finite && k === n - 1)) {
+      const hold = style === 'trail' ? 0.3 : 0.55;
+      if (f > hold) move = ease((f - hold) / (1 - hold));
+    }
+    return { pos: (k + move) % n, index: (move > 0.5 ? k + 1 : k) % n };
+  }
+
+  // Returns null before the first beat, {done} after the last, else the marker state.
   function timeline(cfg, t, once) {
     const n = cfg.names.length, u = (t - PRE_ROLL) / cfg.sec;
     if (u < 0) return null;
     const finite = once || !cfg.loop;
     if (finite && u >= n) return { done: true };
-    const k = Math.floor(u), f = u - k;
-    let move = 0;
-    if (cfg.motion === 'glide' && !(finite && k === n - 1)) {
-      const hold = 0.55;
-      if (f > hold) move = ease((f - hold) / (1 - hold));
+    const style = cfg.style || 'step';
+    const s = posAt(style, u, n, finite);
+    s.f = u - Math.floor(u);
+    s.sweep = u % n;
+    if (style === 'trail') {
+      s.tail = [];
+      for (let j = 1; j <= 10; j++) {
+        const uj = u - (j * 0.03) / cfg.sec;
+        if (uj < 0) break;
+        s.tail.push(posAt(style, uj, n, finite).pos);
+      }
     }
-    return { pos: (k + move) % n, index: (move > 0.5 ? k + 1 : k) % n };
+    return s;
   }
 
   function setReadout(cfg, state) {
@@ -469,7 +523,7 @@ canvas { display: block; width: 100%; height: 100%; }
     if (play.running && applied) {
       const t = (now - play.t0) / 1000;
       const state = timeline(applied, t, play.recording);
-      draw(applied, state && !state.done ? state.pos : null);
+      draw(applied, state && !state.done ? state : null);
       setReadout(applied, state);
       if (play.recording) {
         if (t >= recordEnd) { play.running = false; onRecordEnd && onRecordEnd(); }
@@ -530,7 +584,7 @@ canvas { display: block; width: 100%; height: 100%; }
     const wasRunning = play.running;
     const t = wasRunning ? (performance.now() - play.t0) / 1000 : play.elapsed / 1000;
     const state = timeline(applied, t, false);
-    draw(applied, state && !state.done ? state.pos : null);
+    draw(applied, state && !state.done ? state : null);
     canvas.toBlob((blob) => blob && saveFile(blob, baseName() + '.png'), 'image/png');
   });
 
@@ -574,7 +628,7 @@ canvas { display: block; width: 100%; height: 100%; }
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (_) {}
   const valid = saved && Array.isArray(saved.names) && saved.names.length >= MIN && saved.names.length <= MAX;
-  const start = valid ? saved : { names: PRESETS.teentaal.split(' '), sec: 0.6, motion: 'step', loop: true, bg: DEFAULT_BG };
+  const start = valid ? saved : { names: PRESETS.teentaal.split(' '), sec: 0.6, style: 'step', loop: true, bg: DEFAULT_BG };
   writeForm(start);
   applied = readForm();
 
@@ -583,7 +637,7 @@ canvas { display: block; width: 100%; height: 100%; }
     : Promise.resolve();
   draw(applied, null); setReadout(applied, null);
   fontReady.then(() => {
-    if (reduceMotion) { draw(applied, 0); setReadout(applied, { index: 0 }); playBtn.textContent = 'Play'; play.elapsed = (PRE_ROLL + 0.01) * 1000; }
+    if (reduceMotion) { const still = timeline(applied, PRE_ROLL + applied.sec * 0.99, false); draw(applied, still); setReadout(applied, still); playBtn.textContent = 'Play'; play.elapsed = (PRE_ROLL + 0.01) * 1000; }
     else restart(true);
   });
   requestAnimationFrame(tick);
