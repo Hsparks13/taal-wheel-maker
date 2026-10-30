@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Taal Wheel Maker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: settings panel on the left, the wheel stage on the right; stacks to one column on phones. */
+:root {
+  --bg: #EDECEF;
+  --panel: #FFFFFF;
+  --fg: #26232B;
+  --muted: #66626E;
+  --line: #D8D5DC;
+  --field: #F6F5F8;
+  --accent: #D7372F;
+  --accent-ink: #FFFFFF;
+  --chip: #F7DED2;
+  --chip-ink: #6B2A22;
+  --focus: #2F6FD7;
+  --font-display: "Nunito", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17161A; --panel: #222026; --fg: #ECEAF0; --muted: #A29EAA; --line: #37343D;
+    --field: #2A2830; --accent: #EE5B53; --accent-ink: #1A0D0C; --chip: #3B2925; --chip-ink: #F7CDBF; --focus: #7FA8F0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17161A; --panel: #222026; --fg: #ECEAF0; --muted: #A29EAA; --line: #37343D;
+  --field: #2A2830; --accent: #EE5B53; --accent-ink: #1A0D0C; --chip: #3B2925; --chip-ink: #F7CDBF; --focus: #7FA8F0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 15px/1.5 var(--font-body);
+  padding-block: 24px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+header h1 { font: 800 30px/1.1 var(--font-display); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 6px 0 0; color: var(--muted); max-width: 62ch; }
+.layout { display: grid; grid-template-columns: minmax(0, 390px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.group { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.label { font-weight: 600; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+.row { display: flex; gap: 10px; align-items: center; }
+input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+input[type="text"], input[type="number"] {
+  font: inherit; color: var(--fg); background: var(--field);
+  border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 0;
+}
+input[type="number"] { width: 84px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+input:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 500 13px/1 var(--font-body); background: var(--chip); color: var(--chip-ink); border: 0; border-radius: 999px; padding: 7px 11px; cursor: pointer; }
+.chip span { font-family: var(--font-mono); opacity: 0.75; margin-left: 4px; }
+.chip:hover { filter: brightness(0.96); }
+
+.names { list-style: none; margin: 0; padding: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; max-height: 330px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--field); }
+.names li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.names .num { font: 500 12px/1 var(--font-mono); color: var(--muted); width: 22px; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
+.names input { flex: 1; width: 100%; background: var(--panel); padding: 6px 8px; }
+.quick { display: flex; gap: 8px; }
+.quick input { flex: 1; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.seg label { padding: 6px 14px; cursor: pointer; font-size: 14px; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked) { background: var(--fg); color: var(--panel); }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.swatch { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); padding: 0; }
+.swatch[aria-pressed="true"] { outline: 2px solid var(--fg); outline-offset: 2px; }
+input[type="color"] { width: 44px; height: 32px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); cursor: pointer; }
+.readout { font: 500 13px/1.3 var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+
+button { font: inherit; cursor: pointer; }
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 9px; padding: 8px 14px; font-weight: 500; }
+.btn:hover:not(:disabled) { background: var(--field); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.create { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 13px 18px; font: 800 17px/1 var(--font-display); letter-spacing: 0.01em; }
+.create:hover:not(:disabled) { filter: brightness(1.06); }
+.create-note { font-size: 13px; color: var(--accent); margin: -12px 0 0; min-height: 1.4em; }
+
+.stage { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+@media (min-width: 881px) { .stage { position: sticky; top: calc(16px + env(safe-area-inset-top, 0px)); } }
+.canvas-box { width: 100%; max-width: min(100%, 76vh); margin: 0 auto; aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+canvas { display: block; width: 100%; height: 100%; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.toolbar .left, .toolbar .right { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.status { font-size: 13px; color: var(--muted); min-height: 1.4em; margin: 0; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Taal Wheel Maker</h1>
+    <p>Choose how many beats sit on the circle, name each one, set how fast the marker moves, then press Create. The wheel below opens with Teentaal as an example.</p>
+  </header>
+
+  <div class="layout">
+    <form class="panel" id="settings" autocomplete="off">
+      <div class="group">
+        <div class="group-head">
+          <label class="label" for="count">Number of entries</label>
+          <span class="readout" id="countReadout">16</span>
+        </div>
+        <div class="row">
+          <input type="range" id="count" min="2" max="32" step="1" value="16">
+          <input type="number" id="countNum" min="2" max="32" step="1" value="16" aria-label="Number of entries">
+        </div>
+        <div class="presets" aria-label="Example taals">
+          <button type="button" class="chip" data-preset="teentaal">Teentaal<span>16</span></button>
+          <button type="button" class="chip" data-preset="ektaal">Ektaal<span>12</span></button>
+          <button type="button" class="chip" data-preset="jhaptaal">Jhaptaal<span>10</span></button>
+          <button type="button" class="chip" data-preset="keherwa">Keherwa<span>8</span></button>
+          <button type="button" class="chip" data-preset="rupak">Rupak<span>7</span></button>
+          <button type="button" class="chip" data-preset="dadra">Dadra<span>6</span></button>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-head">
+          <span class="label">Entry names</span>
+          <span class="hint">Entry 1 sits at the top; the rest go clockwise.</span>
+        </div>
+        <div class="quick">
+          <input type="text" id="quick" placeholder="Type all names, e.g. Dha Dhin Dhin Dha" aria-label="Fill all names at once">
+          <button type="button" class="btn" id="quickFill">Fill</button>
+        </div>
+        <ol class="names" id="names"></ol>
+      </div>
+
+      <div class="group">
+        <div class="group-head">
+          <label class="label" for="speed">Transition speed</label>
+          <span class="readout" id="speedReadout"></span>
+        </div>
+        <div class="row">
+          <input type="range" id="speed" min="0.1" max="3" step="0.05" value="0.6">
+          <input type="number" id="speedNum" min="0.1" max="3" step="0.05" value="0.6" aria-label="Seconds per entry">
+        </div>
+        <p class="hint">Seconds the marker spends on each entry before moving to the next.</p>
+      </div>
+
+      <div class="group">
+        <span class="label">Motion</span>
+        <div class="row" style="justify-content: space-between; flex-wrap: wrap;">
+          <div class="seg" role="radiogroup" aria-label="Motion">
+            <label><input type="radio" name="motion" id="motionStep" value="step" checked>Step</label>
+            <label><input type="radio" name="motion" id="motionGlide" value="glide">Glide</label>
+          </div>
+          <label class="check"><input type="checkbox" id="loop" checked>Loop the cycle</label>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-head">
+          <label class="label" for="bg">Background</label>
+          <span class="readout" id="bgReadout"></span>
+        </div>
+        <div class="swatches">
+          <button type="button" class="swatch" data-bg="#ffffff" style="background:#ffffff" aria-label="White"></button>
+          <button type="button" class="swatch" data-bg="#f5f5f5" style="background:#f5f5f5" aria-label="Light grey"></button>
+          <button type="button" class="swatch" data-bg="#f8d2be" style="background:#f8d2be" aria-label="Peach"></button>
+          <button type="button" class="swatch" data-bg="#000000" style="background:#000000" aria-label="Black"></button>
+          <input type="color" id="bg" value="#ffffff" aria-label="Custom background colour">
+        </div>
+        <p class="hint">Match the colour of the slide or page you will place the video on, so its edges disappear.</p>
+      </div>
+
+      <button type="submit" class="create" id="create">Create</button>
+      <p class="create-note" id="createNote" aria-live="polite"></p>
+    </form>
+
+    <section class="stage" aria-label="Illustration">
+      <div class="canvas-box"><canvas id="wheel" width="1080" height="1080" role="img" aria-label="Circle of beats with a moving marker"></canvas></div>
+      <div class="toolbar">
+        <div class="left">
+          <button type="button" class="btn" id="playBtn">Pause</button>
+          <button type="button" class="btn" id="restartBtn">Restart</button>
+          <span class="readout" id="beatReadout"></span>
+        </div>
+        <div class="right">
+          <button type="button" class="btn" id="saveImg">Save image</button>
+          <button type="button" class="btn" id="saveVid">Save video</button>
+        </div>
+      </div>
+      <p class="status" id="status" aria-live="polite"></p>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const PRESETS = {
+    teentaal: 'Dha Dhin Dhin Dha Dha Dhin Dhin Dha Dha Tin Tin Ta Ta Dhin Dhin Dha',
+    ektaal: 'Dhin Dhin DhaGe TiRaKiTa Tu Na Kat Ta DhaGe TiRaKiTa Dhi Na',
+    jhaptaal: 'Dhi Na Dhi Dhi Na Ti Na Dhi Dhi Na',
+    keherwa: 'Dha Ge Na Ti Na Ka Dhi Na',
+    rupak: 'Tin Tin Na Dhi Na Dhi Na',
+    dadra: 'Dha Dhi Na Dha Ti Na',
+  };
+  // Illustration colours ignore the page theme so exports look the same everywhere.
+  const ART = { pill: '#F36A62', pillEdge: '#DD3329' };
+  const DEFAULT_BG = '#ffffff';
+  function inkFor(bg) {
+    const v = parseInt(bg.slice(1), 16), r = (v >> 16) & 255, g = (v >> 8) & 255, b = v & 255;
+    const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    return lum < 0.4 ? { ring: '#B8B8B8', label: '#C4C4C4' } : { ring: '#707070', label: '#696969' };
+  }
+  const MIN = 2, MAX = 32, PRE_ROLL = 0.5, POST_ROLL = 0.8;
+  const STORE_KEY = 'taal-wheel-settings-v1';
+
+  const $ = (id) => document.getElementById(id);
+  const form = $('settings'), namesEl = $('names');
+  const count = $('count'), countNum = $('countNum'), countReadout = $('countReadout');
+  const speed = $('speed'), speedNum = $('speedNum'), speedReadout = $('speedReadout');
+  const loopEl = $('loop'), bgEl = $('bg'), createBtn = $('create'), createNote = $('createNote');
+  const playBtn = $('playBtn'), restartBtn = $('restartBtn'), beatReadout = $('beatReadout');
+  const saveImg = $('saveImg'), saveVid = $('saveVid'), statusEl = $('status');
+  const canvas = $('wheel'), ctx = canvas.getContext('2d');
+  const W = canvas.width;
+
+  let applied = null;
+  const play = { running: false, t0: 0, elapsed: 0, recording: false };
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- form ----------
+  function clampInt(v) { return Math.min(MAX, Math.max(MIN, Math.round(Number(v) || MIN))); }
+  function clampSpeed(v) { return Math.min(3, Math.max(0.1, Number(v) || 0.6)); }
+
+  function renderNames(values) {
+    const n = values.length;
+    const focusedId = document.activeElement && document.activeElement.id;
+    namesEl.innerHTML = '';
+    // Fill down columns so entry order reads top to bottom.
+    const rows = Math.ceil(n / 2);
+    for (let r = 0; r < rows; r++) {
+      for (const i of [r, r + rows]) {
+        if (i >= n) continue;
+        const li = document.createElement('li');
+        const num = document.createElement('span');
+        num.className = 'num'; num.textContent = i + 1;
+        const input = document.createElement('input');
+        input.type = 'text'; input.id = 'name-' + i; input.maxLength = 24;
+        input.value = values[i]; input.setAttribute('aria-label', 'Name of entry ' + (i + 1));
+        li.append(num, input);
+        namesEl.append(li);
+      }
+    }
+    if (focusedId && $(focusedId)) $(focusedId).focus();
+  }
+
+  function currentNames() {
+    const n = clampInt(count.value), out = [];
+    for (let i = 0; i < n; i++) { const el = $('name-' + i); out.push(el ? el.value : String(i + 1)); }
+    return out;
+  }
+
+  function setCount(n, names) {
+    n = clampInt(n);
+    const prev = names || currentNames();
+    const next = [];
+    for (let i = 0; i < n; i++) next.push(prev[i] !== undefined ? prev[i] : String(i + 1));
+    count.value = countNum.value = n; countReadout.textContent = n + ' entries';
+    renderNames(next);
+  }
+
+  function setSpeed(s) {
+    s = clampSpeed(s);
+    speed.value = speedNum.value = s;
+    speedReadout.textContent = s.toFixed(2) + ' s each · ' + Math.round(60 / s) + ' BPM';
+  }
+
+  function readForm() {
+    return {
+      names: currentNames().map((s) => s.trim()),
+      sec: clampSpeed(speed.value),
+      motion: form.querySelector('input[name="motion"]:checked').value,
+      loop: loopEl.checked,
+      bg: bgEl.value.toLowerCase(),
+    };
+  }
+
+  function setBg(hex) {
+    bgEl.value = /^#[0-9a-f]{6}$/i.test(hex || '') ? hex.toLowerCase() : DEFAULT_BG;
+    $('bgReadout').textContent = bgEl.value.toUpperCase();
+    form.querySelectorAll('[data-bg]').forEach((s) => s.setAttribute('aria-pressed', String(s.dataset.bg === bgEl.value)));
+  }
+
+  function writeForm(cfg) {
+    setCount(cfg.names.length, cfg.names);
+    setSpeed(cfg.sec);
+    $(cfg.motion === 'glide' ? 'motionGlide' : 'motionStep').checked = true;
+    loopEl.checked = !!cfg.loop;
+    setBg(cfg.bg);
+  }
+
+  function refreshPending() {
+    const pending = applied && JSON.stringify(readForm()) !== JSON.stringify(applied);
+    createNote.textContent = pending ? 'You have changes. Press Create to apply them.' : '';
+  }
+
+  count.addEventListener('input', () => setCount(count.value));
+  countNum.addEventListener('change', () => setCount(countNum.value));
+  speed.addEventListener('input', () => setSpeed(speed.value));
+  speedNum.addEventListener('change', () => setSpeed(speedNum.value));
+  bgEl.addEventListener('input', () => setBg(bgEl.value));
+  form.querySelectorAll('[data-bg]').forEach((s) => s.addEventListener('click', () => { setBg(s.dataset.bg); refreshPending(); }));
+  form.addEventListener('input', refreshPending);
+  form.addEventListener('change', refreshPending);
+
+  form.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => {
+    const names = PRESETS[b.dataset.preset].split(' ');
+    setCount(names.length, names);
+    refreshPending();
+  }));
+
+  $('quickFill').addEventListener('click', () => {
+    const parts = $('quick').value.split(/[\s,|]+/).filter(Boolean).slice(0, MAX);
+    if (parts.length < MIN) { createNote.textContent = 'Type at least two names, separated by spaces or commas.'; return; }
+    setCount(parts.length, parts);
+    $('quick').value = '';
+    refreshPending();
+  });
+  $('quick').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('quickFill').click(); } });
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (play.recording) return;
+    applied = readForm();
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(applied)); } catch (_) {}
+    refreshPending();
+    restart(true);
+    setStatus('Created a wheel with ' + applied.names.length + ' entries.');
+  });
+
+  // ---------- drawing ----------
+  function ringAt(R) {
+    const tick = W * 0.062;
+    return { c: W / 2, R, ringW: W * 0.0125, tick, labelR: R + tick / 2 + W * 0.03 };
+  }
+
+  // Shrink the ring when long names would otherwise force tiny labels.
+  function geometry(names) {
+    const base = W * 0.052;
+    let best = null;
+    for (const f of [0.30, 0.28, 0.26, 0.24, 0.22]) {
+      const g = ringAt(W * f);
+      g.font = labelFont(names, g);
+      if (!best || g.font > best.font + 0.5) best = g;
+      if (g.font >= base * 0.9) break;
+    }
+    return best;
+  }
+
+  function angleOf(pos, n) { return -Math.PI / 2 + (2 * Math.PI * pos) / n; }
+
+  function labelFont(names, g) {
+    const n = names.length, base = W * 0.052;
+    ctx.font = '700 ' + base + 'px ' + 'Nunito, "Avenir Next", system-ui, sans-serif';
+    const arc = (2 * Math.PI * g.labelR) / n;
+    let scale = 1;
+    names.forEach((name, i) => {
+      if (!name) return;
+      const w = ctx.measureText(name).width;
+      const a = angleOf(i, n), cos = Math.cos(a);
+      if (Math.abs(cos) <= 0.35) scale = Math.min(scale, (arc * 0.92) / w);
+      else scale = Math.min(scale, (W / 2 - W * 0.03 - g.labelR * Math.abs(cos)) / w);
+    });
+    scale = Math.min(scale, (arc * 0.62) / base);
+    return Math.max(W * 0.018, base * scale);
+  }
+
+  function drawPill(a, g, ink) {
+    const len = g.tick * 1.3, thick = W * 0.034;
+    ctx.save();
+    ctx.translate(g.c + Math.cos(a) * g.R, g.c + Math.sin(a) * g.R);
+    ctx.rotate(a);
+    const x = -len / 2, y = -thick / 2, r = thick / 2;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x, y, len, thick, r) : ctx.rect(x, y, len, thick);
+    ctx.fillStyle = ART.pill; ctx.fill();
+    ctx.lineWidth = W * 0.005; ctx.strokeStyle = ART.pillEdge; ctx.stroke();
+    // Keep the grey tick visible through the marker, as in the reference.
+    ctx.beginPath(); ctx.moveTo(-g.tick / 2, 0); ctx.lineTo(g.tick / 2, 0);
+    ctx.lineWidth = g.ringW; ctx.lineCap = 'round'; ctx.strokeStyle = ink.ring; ctx.stroke();
+    ctx.restore();
+  }
+
+  function draw(cfg, marker) {
+    const names = cfg.names, n = names.length, g = geometry(names);
+    const ink = inkFor(cfg.bg || DEFAULT_BG);
+    ctx.fillStyle = cfg.bg || DEFAULT_BG; ctx.fillRect(0, 0, W, W);
+
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = ink.ring; ctx.lineWidth = g.ringW;
+    ctx.beginPath(); ctx.arc(g.c, g.c, g.R, 0, Math.PI * 2); ctx.stroke();
+
+    for (let i = 0; i < n; i++) {
+      const a = angleOf(i, n), cos = Math.cos(a), sin = Math.sin(a);
+      ctx.beginPath();
+      ctx.moveTo(g.c + cos * (g.R - g.tick / 2), g.c + sin * (g.R - g.tick / 2));
+      ctx.lineTo(g.c + cos * (g.R + g.tick / 2), g.c + sin * (g.R + g.tick / 2));
+      ctx.stroke();
+    }
+
+    const size = g.font;
+    ctx.font = '700 ' + size + 'px Nunito, "Avenir Next", system-ui, sans-serif';
+    ctx.fillStyle = ink.label;
+    for (let i = 0; i < n; i++) {
+      if (!names[i]) continue;
+      const a = angleOf(i, n), cos = Math.cos(a), sin = Math.sin(a);
+      ctx.textAlign = cos > 0.35 ? 'left' : cos < -0.35 ? 'right' : 'center';
+      ctx.textBaseline = sin < -0.5 ? 'bottom' : sin > 0.5 ? 'top' : 'middle';
+      ctx.fillText(names[i], g.c + cos * g.labelR, g.c + sin * g.labelR);
+    }
+
+    if (marker !== null) drawPill(angleOf(marker, n), g, ink);
+  }
+
+  // ---------- timing ----------
+  const ease = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
+
+  // Returns null before the first beat, {done} after the last, else the marker position in beats.
+  function timeline(cfg, t, once) {
+    const n = cfg.names.length, u = (t - PRE_ROLL) / cfg.sec;
+    if (u < 0) return null;
+    const finite = once || !cfg.loop;
+    if (finite && u >= n) return { done: true };
+    const k = Math.floor(u), f = u - k;
+    let move = 0;
+    if (cfg.motion === 'glide' && !(finite && k === n - 1)) {
+      const hold = 0.55;
+      if (f > hold) move = ease((f - hold) / (1 - hold));
+    }
+    return { pos: (k + move) % n, index: (move > 0.5 ? k + 1 : k) % n };
+  }
+
+  function setReadout(cfg, state) {
+    const n = cfg.names.length;
+    if (!state || state.done) { beatReadout.textContent = n + ' entries'; return; }
+    const name = cfg.names[state.index];
+    beatReadout.textContent = 'Entry ' + (state.index + 1) + ' of ' + n + (name ? ' · ' + name : '');
+  }
+
+  let recordEnd = 0, onRecordEnd = null;
+  function tick(now) {
+    if (play.running && applied) {
+      const t = (now - play.t0) / 1000;
+      const state = timeline(applied, t, play.recording);
+      draw(applied, state && !state.done ? state.pos : null);
+      setReadout(applied, state);
+      if (play.recording) {
+        if (t >= recordEnd) { play.running = false; onRecordEnd && onRecordEnd(); }
+      } else if (state && state.done) {
+        play.running = false; play.elapsed = 0; playBtn.textContent = 'Play';
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function restart(autoplay) {
+    play.elapsed = 0;
+    if (autoplay) { play.running = true; play.t0 = performance.now(); playBtn.textContent = 'Pause'; }
+    else { play.running = false; playBtn.textContent = 'Play'; draw(applied, null); setReadout(applied, null); }
+  }
+
+  playBtn.addEventListener('click', () => {
+    if (!applied || play.recording) return;
+    if (play.running) {
+      play.running = false; play.elapsed = performance.now() - play.t0; playBtn.textContent = 'Play';
+    } else {
+      play.running = true; play.t0 = performance.now() - play.elapsed; playBtn.textContent = 'Pause';
+    }
+  });
+  restartBtn.addEventListener('click', () => { if (applied && !play.recording) restart(true); });
+
+  // ---------- saving ----------
+  function setStatus(msg) { statusEl.textContent = msg; }
+
+  async function saveFile(blob, filename) {
+    if (window.claude && window.claude.use) {
+      const downloads = await window.claude.use('downloads');
+      if (!downloads) { setStatus('Saving files is not available in this view.'); return; }
+      try {
+        await downloads.save({ filename, data: blob });
+        setStatus('Saved ' + filename + '.');
+      } catch (err) {
+        const code = err && err.code;
+        if (code === 'declined') setStatus('Save cancelled.');
+        else if (code === 'rate_limited') setStatus('A save prompt is already open. Try again in a moment.');
+        else setStatus('Could not save the file here (' + (code || 'error') + ').');
+      }
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    setStatus('Saved ' + filename + '.');
+  }
+
+  function baseName() {
+    return 'taal-wheel-' + applied.names.length + '-entries';
+  }
+
+  saveImg.addEventListener('click', () => {
+    if (!applied) return;
+    const wasRunning = play.running;
+    const t = wasRunning ? (performance.now() - play.t0) / 1000 : play.elapsed / 1000;
+    const state = timeline(applied, t, false);
+    draw(applied, state && !state.done ? state.pos : null);
+    canvas.toBlob((blob) => blob && saveFile(blob, baseName() + '.png'), 'image/png');
+  });
+
+  function pickVideoType() {
+    if (!window.MediaRecorder || !canvas.captureStream) return null;
+    const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    return types.find((t) => MediaRecorder.isTypeSupported(t)) || null;
+  }
+
+  function setBusy(busy) {
+    play.recording = busy;
+    [createBtn, playBtn, restartBtn, saveImg, saveVid].forEach((b) => (b.disabled = busy));
+  }
+
+  saveVid.addEventListener('click', () => {
+    if (!applied || play.recording) return;
+    const type = pickVideoType();
+    if (!type) { setStatus('This browser cannot record video. Try Chrome, Edge or Safari.'); return; }
+    const ext = type.startsWith('video/mp4') ? 'mp4' : 'webm';
+    const total = PRE_ROLL + applied.names.length * applied.sec + POST_ROLL;
+    const stream = canvas.captureStream(60);
+    const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 8000000 });
+    const chunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = () => {
+      stream.getTracks().forEach((tr) => tr.stop());
+      setBusy(false);
+      playBtn.textContent = 'Play';
+      saveFile(new Blob(chunks, { type }), baseName() + '.' + ext);
+    };
+    setBusy(true);
+    setStatus('Recording one full cycle (' + total.toFixed(1) + ' s). Keep this tab open.');
+    draw(applied, null);
+    rec.start(250);
+    recordEnd = total;
+    onRecordEnd = () => { onRecordEnd = null; setTimeout(() => rec.state !== 'inactive' && rec.stop(), 120); };
+    play.running = true; play.t0 = performance.now();
+  });
+
+  // ---------- boot ----------
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (_) {}
+  const valid = saved && Array.isArray(saved.names) && saved.names.length >= MIN && saved.names.length <= MAX;
+  const start = valid ? saved : { names: PRESETS.teentaal.split(' '), sec: 0.6, motion: 'step', loop: true, bg: DEFAULT_BG };
+  writeForm(start);
+  applied = readForm();
+
+  const fontReady = document.fonts && document.fonts.load
+    ? document.fonts.load('700 40px Nunito').catch(() => {})
+    : Promise.resolve();
+  draw(applied, null); setReadout(applied, null);
+  fontReady.then(() => {
+    if (reduceMotion) { draw(applied, 0); setReadout(applied, { index: 0 }); playBtn.textContent = 'Play'; play.elapsed = (PRE_ROLL + 0.01) * 1000; }
+    else restart(true);
+  });
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
