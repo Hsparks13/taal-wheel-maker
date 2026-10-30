@@ -176,6 +176,7 @@ canvas { display: block; width: 100%; height: 100%; }
           <label class="style-card"><input type="radio" name="style" id="style-spotlight" value="spotlight"><b>Spotlight</b><span>Current name grows and turns red</span></label>
         </div>
         <label class="check"><input type="checkbox" id="loop" checked>Loop the cycle</label>
+        <label class="check"><input type="checkbox" id="center">Show the current name in the centre</label>
       </div>
 
       <div class="group">
@@ -240,7 +241,7 @@ canvas { display: block; width: 100%; height: 100%; }
   const form = $('settings'), namesEl = $('names');
   const count = $('count'), countNum = $('countNum'), countReadout = $('countReadout');
   const speed = $('speed'), speedNum = $('speedNum'), speedReadout = $('speedReadout');
-  const loopEl = $('loop'), bgEl = $('bg'), createBtn = $('create'), createNote = $('createNote');
+  const loopEl = $('loop'), centerEl = $('center'), bgEl = $('bg'), createBtn = $('create'), createNote = $('createNote');
   const playBtn = $('playBtn'), restartBtn = $('restartBtn'), beatReadout = $('beatReadout');
   const saveImg = $('saveImg'), saveVid = $('saveVid'), statusEl = $('status');
   const canvas = $('wheel'), ctx = canvas.getContext('2d');
@@ -303,6 +304,7 @@ canvas { display: block; width: 100%; height: 100%; }
       sec: clampSpeed(speed.value),
       style: form.querySelector('input[name="style"]:checked').value,
       loop: loopEl.checked,
+      center: centerEl.checked,
       bg: bgEl.value.toLowerCase(),
     };
   }
@@ -319,6 +321,7 @@ canvas { display: block; width: 100%; height: 100%; }
     // Settings saved before styles existed only have `motion` (step or glide).
     ($('style-' + (cfg.style || cfg.motion)) || $('style-step')).checked = true;
     loopEl.checked = !!cfg.loop;
+    centerEl.checked = !!cfg.center;
     setBg(cfg.bg);
   }
 
@@ -451,6 +454,12 @@ canvas { display: block; width: 100%; height: 100%; }
       if (spot && i === state.index) {
         ctx.fillStyle = ART.pillEdge;
         grow = 1 + 0.22 * ease(Math.min(1, state.f / 0.18));
+        if (Math.abs(cos) > 0.35) {
+          // Side labels grow outward, so stop before they reach the canvas edge.
+          ctx.font = '700 ' + size + 'px Nunito, "Avenir Next", system-ui, sans-serif';
+          const room = W / 2 - W * 0.03 - g.labelR * Math.abs(cos);
+          grow = Math.max(1, Math.min(grow, room / ctx.measureText(names[i]).width));
+        }
       } else if (spot) ctx.globalAlpha = 0.4;
       ctx.font = '700 ' + size * grow + 'px Nunito, "Avenir Next", system-ui, sans-serif';
       ctx.textAlign = cos > 0.35 ? 'left' : cos < -0.35 ? 'right' : 'center';
@@ -460,6 +469,15 @@ canvas { display: block; width: 100%; height: 100%; }
     ctx.globalAlpha = 1;
 
     if (!state) return;
+    const current = names[state.index];
+    if (cfg.center && current) {
+      const base = W * 0.12;
+      ctx.font = '800 ' + base + 'px Nunito, "Avenir Next", system-ui, sans-serif';
+      const big = Math.min(base, (base * g.R * 1.35) / ctx.measureText(current).width);
+      ctx.font = '800 ' + big + 'px Nunito, "Avenir Next", system-ui, sans-serif';
+      ctx.fillStyle = ink.label; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(current, g.c, g.c);
+    }
     const a = angleOf(state.pos, n);
     if (style === 'trail') {
       state.tail.forEach((p, j) => drawPill(angleOf(p, n), g, ink, { scale: 0.92, alpha: 0.45 * (1 - (j + 1) / (state.tail.length + 1)), ghost: true }));
@@ -628,7 +646,7 @@ canvas { display: block; width: 100%; height: 100%; }
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (_) {}
   const valid = saved && Array.isArray(saved.names) && saved.names.length >= MIN && saved.names.length <= MAX;
-  const start = valid ? saved : { names: PRESETS.teentaal.split(' '), sec: 0.6, style: 'step', loop: true, bg: DEFAULT_BG };
+  const start = valid ? saved : { names: PRESETS.teentaal.split(' '), sec: 0.6, style: 'step', loop: true, center: false, bg: DEFAULT_BG };
   writeForm(start);
   applied = readForm();
 
